@@ -27,7 +27,6 @@
 #include "stm32f769i_discovery.h"
 #include "stm32f769i_discovery_lcd.h"
 #include "stm32f769i_discovery_ts.h"
-#include "stdbool.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,6 +36,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TEMP_REFRESH_PERIOD    250    /* Internal temperature refresh period */
 #define MAX_CONVERTED_VALUE   4095    /* Max converted value */
 #define AMBIENT_TEMP            25    /* Ambient Temperature */
 #define VSENS_AT_AMBIENT_TEMP  760    /* VSENSE value (mv) at ambient temperature */
@@ -64,11 +64,13 @@ SDRAM_HandleTypeDef hsdram1;
 
 /* USER CODE BEGIN PV */
 volatile uint8_t flag = 0;
+volatile uint8_t flagTouch=0;
 volatile uint8_t counter = 0;
 long int JTemp = 0;
 char string[100];
 uint32_t ConvertedValue;
 TS_StateTypeDef TS_State;
+volatile int player = 1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,17 +89,17 @@ static void LCD_Config();
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-/*void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if(GPIO_Pin == GPIO_PIN_13)
-	{
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+
+	if(GPIO_Pin == GPIO_PIN_13){
 		BSP_TS_GetState(&TS_State);
-		sprintf(string, "x = %d", (int)TS_State.touchX[0]);
-		BSP_LCD_DisplayStringAtLine(4, (uint8_t*)string);
-		sprintf(string, "y = %d", (int)TS_State.touchY[0]);
-		BSP_LCD_DisplayStringAtLine(5, (uint8_t*)string);
+		flagTouch=1;
+		HAL_Delay(100);
 	}
-}*/
+	if(GPIO_Pin == GPIO_PIN_0){
+		  printMenu();
+	}
+}
 
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef *htim)
 {
@@ -110,6 +112,11 @@ void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef *htim)
 
 void printBoardGame()
 {
+
+	BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
+	BSP_LCD_FillRect(BSP_LCD_GetXSize()/2.10, BSP_LCD_GetYSize()/10, 400, 400);
+	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
+
 	  for(int i = 0; i<=8; i++)
 	  {
 		  BSP_LCD_DrawVLine(BSP_LCD_GetXSize()/2.10 + (BSP_LCD_GetXSize()/16)*i, BSP_LCD_GetYSize()/10, 400);
@@ -129,15 +136,143 @@ void printScoreTable()
 	   BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
 
 	   sprintf(string, "Game Info");
-	   	  BSP_LCD_SetFont(&Font24);
-	   	  BSP_LCD_DisplayStringAt(90,55 , (uint8_t *)string, LEFT_MODE);
+	   BSP_LCD_SetFont(&Font24);
+	   BSP_LCD_DisplayStringAt(90,55 , (uint8_t *)string, LEFT_MODE);
 }
 
-int TempCalc ()
+void TempCalc ()
 {
 flag = 0;
 ConvertedValue=HAL_ADC_GetValue(&hadc1);
 JTemp = ((((ConvertedValue * VREF)/MAX_CONVERTED_VALUE) - VSENS_AT_AMBIENT_TEMP) * 10 / AVG_SLOPE) + AMBIENT_TEMP;
+}
+
+void putCircle(float x, float y)
+{
+	player++;
+	if(player%2==1){
+		//player 1
+		BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+		BSP_LCD_FillCircle(x, y, 15);
+		BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+		}
+		else{
+		//player 2
+		BSP_LCD_SetTextColor(LCD_COLOR_YELLOW );
+		BSP_LCD_FillCircle(x,y, 15);
+		BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+		}
+}
+
+void printPlayer ()
+{
+	if(player%2==1)
+	{
+		sprintf(string, "Player 1 turn");
+			   BSP_LCD_SetFont(&Font24);
+			   BSP_LCD_DisplayStringAt(90,100 , (uint8_t *)string, LEFT_MODE);
+	}
+	if(player%2==0)
+	{
+		sprintf(string, "Player 2 turn");
+			   BSP_LCD_SetFont(&Font24);
+			   BSP_LCD_DisplayStringAt(90,100 , (uint8_t *)string, LEFT_MODE);
+	}
+}
+void checkPlace(){
+	float x;
+	float y;
+
+	if(TS_State.touchX[0]>=380 && TS_State.touchX[0]<=780 && TS_State.touchY[0]>=50 && TS_State.touchY[0]<=450){
+
+		for(int i=0; i<=8; i++)
+		{
+		            if(TS_State.touchX[0] >= 380 + (50*i)  && TS_State.touchX[0]< (380 + (50*i)) +50 )
+		            {
+		                x = 405+50*i;
+		                break;
+		            }
+		        }
+		        for(int j=0; j<=8; j++){
+		            if(TS_State.touchY[0] >= 50 +(50*j) && TS_State.touchY[0] < (50 +(50*j))+50){
+		                y = 75+50*j;
+		                break;
+		            }
+		        }
+			putCircle(x, y);
+			printPlayer ();
+		}
+	flagTouch=0;
+}
+
+void firstPlays ()
+{
+	BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+	BSP_LCD_FillCircle(555, 225, 15);
+	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+
+	BSP_LCD_SetTextColor(LCD_COLOR_YELLOW );
+	BSP_LCD_FillCircle(605, 225, 15);
+	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+
+	BSP_LCD_SetTextColor(LCD_COLOR_YELLOW );
+	BSP_LCD_FillCircle(555, 275, 15);
+	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+
+	BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+	BSP_LCD_FillCircle(605, 275, 15);
+	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+}
+void printMenu()
+{
+	BSP_LCD_Clear(LCD_COLOR_WHITE);
+
+	BSP_LCD_DrawVLine(250, 50, 375);
+	BSP_LCD_DrawHLine(250, 50, 300);
+	BSP_LCD_DrawHLine(250, 85, 300);
+	BSP_LCD_DrawHLine(250, 425, 300);
+	BSP_LCD_DrawVLine(550, 50, 375);
+	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
+
+    BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
+    BSP_LCD_FillRect(250, 50, 300 , 35);
+    BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+    BSP_LCD_SetBackColor(LCD_COLOR_DARKBLUE);
+
+
+
+	sprintf(string, "Menu");
+	BSP_LCD_SetFont(&Font24);
+	BSP_LCD_DisplayStringAt(10,55 , (uint8_t *)string, CENTER_MODE);
+    BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
+    BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+	sprintf(string, "Single Player");
+	BSP_LCD_SetFont(&Font24);
+	BSP_LCD_DisplayStringAt(15,125 , (uint8_t *)string, CENTER_MODE);
+	sprintf(string, "Multiplayer");
+	BSP_LCD_SetFont(&Font24);
+	BSP_LCD_DisplayStringAt(15,175 , (uint8_t *)string, CENTER_MODE);
+	sprintf(string, "Score");
+	BSP_LCD_SetFont(&Font24);
+	BSP_LCD_DisplayStringAt(10,225 , (uint8_t *)string, CENTER_MODE);
+	sprintf(string, "Rules");
+	BSP_LCD_SetFont(&Font24);
+	BSP_LCD_DisplayStringAt(10,275 , (uint8_t *)string, CENTER_MODE);
+
+	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
+	BSP_LCD_SetFont(&Font12);
+	BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 20, (uint8_t *)"Copyright (c) Holy Fathers company", CENTER_MODE);
+}
+
+void checkPossibleMoves(){
+	for (int i=0;i<8;i++){
+		for(int j=0;j<8;j++){
+			if(BSP_LCD_ReadPixel(75+50*i, 75+50*j)==LCD_COLOR_LIGHTGRAY){
+				BSP_LED_Toggle(LED_GREEN);
+				break;
+			}
+		}
+	}
 }
 /* USER CODE END 0 */
 
@@ -189,10 +324,15 @@ int main(void)
   LCD_Config();
   printBoardGame();
   printScoreTable();
-  BSP_PB_Init(BUTTON_WAKEUP, BUTTON_MODE_GPIO);
+  firstPlays ();
 
   BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize());
    BSP_TS_ITConfig();
+
+
+   BSP_LCD_LayerDefaultInit(LTDC_ACTIVE_LAYER_BACKGROUND, LCD_FB_START_ADDRESS);
+
+
 
   /* USER CODE END 2 */
 
@@ -205,6 +345,11 @@ int main(void)
 	  {
 		TempCalc ();
 	  }
+	  checkPossibleMoves();
+	  if(flagTouch==1){
+	  		  checkPlace();
+	  	  }
+
 	  sprintf(string, "Temp: %ld C", JTemp);
 	  BSP_LCD_SetFont(&Font12);
 	  BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()/2 + 200, (uint8_t *)string, LEFT_MODE);
@@ -221,7 +366,8 @@ int main(void)
 	  	  BSP_LCD_DisplayStringAtLine(4, (uint8_t*)string);
 	  	  sprintf(string, "Y = %d", (int)TS_State.touchY[0]);
 	  	  BSP_LCD_DisplayStringAtLine(5, (uint8_t*)string);
-	  	  }
+	  	BSP_LCD_DrawCircle((int)TS_State.touchX[0],(int)TS_State.touchY[0],1);
+	  		  }
 
     /* USER CODE END WHILE */
 
@@ -674,6 +820,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOI_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
 
   /*Configure GPIO pin : PI13 */
@@ -688,7 +835,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
@@ -723,6 +879,7 @@ static void LCD_Config(void)
   BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
   BSP_LCD_SetFont(&Font24);
 }
+
 /* USER CODE END 4 */
 
 /**

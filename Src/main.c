@@ -56,6 +56,11 @@ typedef enum {MENU, SINGLE, MULTI,SCORE,RULES } states;
 
 #define NoPossMov	         	LCD_COLOR_LIGHTGRAY
 #define PossMov					LCD_COLOR_DARKGRAY
+
+#define sizeYMax	450
+#define sizeYMin	50
+#define sizeXMax	780
+#define sizeXMin	380
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -90,6 +95,9 @@ volatile uint8_t counterPlay = 20;
 volatile uint8_t numberOfPlays=0;
 volatile uint8_t ScorePlayer1=0;
 volatile uint8_t ScorePlayer2=0;
+volatile uint8_t counterPossibleMove=0;
+volatile uint8_t counterPass1=0;
+volatile uint8_t counterPass2=0;
 long int JTemp = 0;
 char string[100];
 char rules[1000];
@@ -103,6 +111,8 @@ uint16_t cX = 0;	//X coordinate
 uint16_t cY = 0;	//Y coordinate
 uint32_t color1 = LCD_COLOR_BLUE;
 uint32_t color2 = LCD_COLOR_YELLOW;
+bool victor;
+
 
 volatile uint8_t updateDisplay=0;
 
@@ -123,6 +133,7 @@ static void MX_TIM13_Init(void);
 
 /* USER CODE BEGIN PFP */
 static void LCD_Config();
+static void LCD_Config2();
 void printBoardGame();
 void printScoreTable();
 void TempCalc ();
@@ -137,10 +148,12 @@ void printTemperatura ();
 void printTotalTime ();
 void writeGameInfoSD ();
 void clearPrePossMov();
-void putplay(uint16_t *cX, uint16_t *cY, uint32_t color1, uint32_t color2);
+//void putplay(uint16_t *cX, uint16_t *cY, uint32_t color1, uint32_t color2);
 void counterScore();
 void blockMove (uint16_t *cX, uint16_t *cY);
-void reverse(uint16_t *cX, uint16_t *cY);
+void reverse();
+void readRules();
+void pass3times();
 
 /* USER CODE END PFP */
 
@@ -171,7 +184,6 @@ void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef *htim)
 		updateDisplay=1;
 	}
 
-
 	if(htim->Instance == TIM13) //timer confg a 1segundo - contagem tempo max da jogada
 	{
 		flagCounter20=1;
@@ -194,6 +206,7 @@ void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef *htim)
 int main(void)
 {
 	/* USER CODE BEGIN 1 */
+
 
 	stadus= MENU;
 	/* USER CODE END 1 */
@@ -238,14 +251,7 @@ int main(void)
 	BSP_LED_Init(LED_GREEN);
 	BSP_LED_Init(LED_RED);
 	HAL_ADC_Start(&hadc1);
-	HAL_TIM_Base_Start_IT(&htim6);
 	HAL_TIM_Base_Start_IT(&htim7);
-	HAL_TIM_Base_Start_IT(&htim13);
-	LCD_Config();
-	printBoardGame();
-	printScoreTable();
-	firstPlays ();
-
 	BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize());
 	BSP_TS_ITConfig();
 
@@ -253,12 +259,10 @@ int main(void)
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
+
+//	writeGameInfoSD();
+	LCD_Config();
 	printMenu();
-	if(flagTemperatura)
-	{
-		TempCalc ();
-	}
-	printTemperatura ();
 
 	while (1)
 	{
@@ -266,63 +270,56 @@ int main(void)
 		{
 			TempCalc ();
 		}
+		printTemperatura ();
 
 		switch (stadus) {
 
 		case SINGLE:
-break;
+			break;
 
 		case MULTI:
 			if(updateDisplay==1)
-						{
-							updateDisplay=0;
 
-							//BSP_LCD_Clear(LCD_COLOR_WHITE);
-							//printBoardGame();
-							printScoreTable();
-							firstPlays ();
-							printTotalTime (); //colocar no inicio de jogo
-							printTemperatura();
-							clearPrePossMov();
+			{
+				updateDisplay=0;
 
+				printScoreTable();
+				firstPlays ();
+				HAL_TIM_Base_Start_IT(&htim6);
+				HAL_TIM_Base_Start_IT(&htim13);
+				printTotalTime ();
+				clearPrePossMov();
 
-							//putplay(cX, cY, color1, color2);
-						   // putCircle(&cX, &cY);          //coloca peça na posiçao escolhida pelo jogador
-						   // reverse(&cX, &cY, color1, color2); //reverte as peças "comidas" pela jogada anterior
+				//TODO: Desenhar peças que já estão no tabuleiro
+			}
 
-							//TODO: Desenhar peças que já estão no tabuleiro
-						}
-						//NEW GAME
+			if (flagTouch)
+			{
+				flagTouch=0;
 
-						//BSP_LCD_Clear(LCD_COLOR_WHITE);
-						if (flagTouch)
-						{
-							flagTouch=0;
+				checkPlace(&cX, &cY);
+				blockMove(cX, cY);
+				reverse();
+			}
 
-							checkPlace(&cX, &cY);
-							blockMove(cX, cY);
-							//reverse(cX, cY);
-							//putCircle(cX, cY);
-						}
-
-
-
-						if(flagPrintMenu)
-						{
-							flagPrintMenu = 0;
-							printMenu();
-							printTemperatura();
-						}
-						//writeGameInfoSD ();
-						break;
+			//writeGameInfoSD ();
+			break;
 
 		case SCORE:
 
-			ReadFromSD ();
+			//ReadFromSD ();
 			break;
 
 		case RULES:
-			//RULES
+			if(updateDisplay==1)
+
+						{
+							updateDisplay=0;
+
+			BSP_LCD_Clear(LCD_COLOR_WHITE);
+			readRules();
+						}
+
 			break;
 
 
@@ -337,6 +334,14 @@ break;
 				printBoardGame();
 			}
 			break;
+		}
+		if(flagPrintMenu)
+		{
+			flagPrintMenu = 0;
+			BSP_LCD_Clear(LCD_COLOR_WHITE);
+			printMenu();
+			printTemperatura();
+			stadus=MENU;
 		}
 
 		/* USER CODE END WHILE */
@@ -932,7 +937,6 @@ static void LCD_Config(void)
 	while(lcd_status != LCD_OK);
 
 	BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
-
 	/* Clear the LCD */
 	BSP_LCD_Clear(LCD_COLOR_WHITE);
 
@@ -945,8 +949,26 @@ static void LCD_Config(void)
 	BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
 	BSP_LCD_SetBackColor(LCD_COLOR_CYAN);
 	BSP_LCD_SetFont(&Font24);
-	BSP_LCD_DisplayStringAt(0, 10, (uint8_t *)"The Reversi", CENTER_MODE);
 
+	BSP_LCD_DisplayStringAt(0, 10, (uint8_t *)"The Reversi", CENTER_MODE);
+	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+	BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+	BSP_LCD_SetFont(&Font24);
+}
+
+static void LCD_Config2(void)
+{
+	/* Set LCD Example description */
+	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
+	BSP_LCD_SetFont(&Font12);
+	BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 20, (uint8_t *)"Copyright (c) Holy Fathers company", CENTER_MODE);
+	BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
+	BSP_LCD_FillRect(0, 0, BSP_LCD_GetXSize(), 35);
+	BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+	BSP_LCD_SetBackColor(LCD_COLOR_CYAN);
+	BSP_LCD_SetFont(&Font24);
+
+	BSP_LCD_DisplayStringAt(0, 10, (uint8_t *)"The Reversi", CENTER_MODE);
 	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
 	BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
 	BSP_LCD_SetFont(&Font24);
@@ -954,6 +976,9 @@ static void LCD_Config(void)
 
 void printBoardGame()
 {
+	LCD_Config2();
+
+	BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
 	BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
 	BSP_LCD_FillRect(BSP_LCD_GetXSize()/2.10, BSP_LCD_GetYSize()/10, 400, 400);
 	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
@@ -1089,8 +1114,6 @@ void firstPlays ()
 }
 void printMenu()
 {
-	BSP_LCD_Clear(LCD_COLOR_WHITE);
-
 	BSP_LCD_DrawVLine(250, 50, 375);
 	BSP_LCD_DrawHLine(250, 50, 300);
 	BSP_LCD_DrawHLine(250, 85, 300);
@@ -1123,9 +1146,7 @@ void printMenu()
 	BSP_LCD_SetFont(&Font24);
 	BSP_LCD_DisplayStringAt(10,350 , (uint8_t *)string, CENTER_MODE);
 
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
-	BSP_LCD_SetFont(&Font12);
-	BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 20, (uint8_t *)"Copyright (c) Holy Fathers Company", CENTER_MODE);
+	LCD_Config2();
 
 	flagPrintMenu=0;
 }
@@ -1153,35 +1174,25 @@ void touchMenu()
 	flagTouch=0;
 }
 
-
-void checkPossibleMoves()
-{
-	for (int i=0;i<8;i++){
-		for(int j=0;j<8;j++){
-			if(BSP_LCD_ReadPixel(75+50*i, 75+50*j)==LCD_COLOR_LIGHTGRAY){
-				BSP_LED_Toggle(LED_GREEN);
-				break;
-			}
-		}
-	}
-}
-
 void ReadFromSD ()
 {
-	if(f_mount (&SDFatFS, SDPath, 0)!=FR_OK) //activa o sistema
-	{
-		Error_Handler();
-	}
+    if(f_mount (&SDFatFS, SDPath, 0)!=FR_OK) //activa o sistema
+    {
+        Error_Handler();
+    }
+    HAL_Delay(100);
+    if(f_open (&SDFile, "Score.txt", FA_READ)!=FR_OK){ //tenta criar ficheiro em modo escrita e testa se detectou SD
+        Error_Handler();
+    }
+    HAL_Delay(100);
 
-	if(f_open (&SDFile, "Score.txt", FA_READ)!=FR_OK) //tenta criar ficheiro em modo escrita e testa se detectou SD
-		Error_Handler();
+    if(f_read (&SDFile, rules, sizeof(rules), &nBytes)!=FR_OK){ // strlen(string) ->numero de caracteres sizeof->n de bytes
+        Error_Handler();
+    }
 
-	if(f_read (&SDFile, rules, sizeof(rules), &nBytes)!=FR_OK) // strlen(string) ->numero de caracteres sizeof->n de bytes
-		Error_Handler();
-
-	BSP_LCD_DisplayStringAt(0, 100, (uint8_t *)rules, CENTER_MODE);
-
-	//	f_close (&SDFile);
+    BSP_LCD_DisplayStringAt(0, 100, (uint8_t *)rules, CENTER_MODE);
+    HAL_Delay(100);
+    f_close (&SDFile);
 }
 
 void printTemperatura ()
@@ -1193,7 +1204,8 @@ void printTemperatura ()
 
 void printTotalTime ()
 {
-	sprintf(string, "Time Total: %d s", counter);
+	int h=counter/3600, m=(counter-3600*h)/60, s=(counter-3600*h-m*60);
+	sprintf(string, "Time Total: %2d:%2d:%2d", h,m,s);
 	BSP_LCD_SetFont(&Font20);
 	BSP_LCD_DisplayStringAt(20, BSP_LCD_GetYSize()/2 + 120, (uint8_t *)string, LEFT_MODE);
 
@@ -1201,19 +1213,27 @@ void printTotalTime ()
 	BSP_LCD_SetFont(&Font20);
 	BSP_LCD_DisplayStringAt(20, BSP_LCD_GetYSize()/2 + 145, (uint8_t *)string, LEFT_MODE);
 }
+
+
 void writeGameInfoSD ()
 {
-	if(f_mount (&SDFatFS, SDPath, 0)!=FR_OK){ //activa o sistema
-		Error_Handler();
-	}
-	if(f_open (&SDFile, "Score.txt", FA_OPEN_APPEND | FA_WRITE)!=FR_OK){ //tenta criar ficheiro em modo escrita e testa se detectou SD
-		Error_Handler();
-	}
-	sprintf(string," %d ", numberOfPlays);
-	int x=strlen(string)*sizeof(char);
-	if(f_write (&SDFile, string, strlen(x), &nBytes)!=FR_OK) // strlen(string) ->numero de caracteres sizeof->n de bytes
-		Error_Handler();
-	f_close (&SDFile);
+    if(f_mount (&SDFatFS, SDPath, 0)!=FR_OK){ //activa o sistema
+        Error_Handler();
+    }
+    HAL_Delay(100);
+    if(f_open (&SDFile, "Score.txt", FA_OPEN_APPEND | FA_WRITE)!=FR_OK){ //tenta criar ficheiro em modo escrita e testa se detectou SD
+        Error_Handler();
+    }
+    HAL_Delay(100);
+
+  //  sprintf(string,"Vencedor: %s, Jogador 1 Pontuação: %d, Jogador 1 Pontuação: %d, Tempo de jogo: %d, Temp média: &%ld\n", stringPlayer, ScorePlayer1, ScorePlayer2, counter, TEmpave);
+
+    int x=strlen(string)*sizeof(char);
+
+    if(f_write (&SDFile, string, strlen(x), &nBytes)!=FR_OK) // strlen(string) ->numero de caracteres sizeof->n de bytes
+        Error_Handler();
+    HAL_Delay(100);
+    f_close (&SDFile);
 }
 
 void clearPrePossMov()
@@ -1235,13 +1255,25 @@ void clearPrePossMov()
 		}
 	}
 }
+void pass3times(){
+    if (counterPass1==3){
+        counterPass1=0;
+        victor=0;
+        endgame();
+    }
+    if (counterPass2==3){
+        counterPass2=0;
+        victor=1;
+        endgame();
+    }
+}
 
 void checkPossMov(int i, int j){
 
 	uint32_t col1;
 	uint32_t col2;
 	int iaux, jaux;
-
+	counterPossibleMove=0;
 
 	//define cor de cada player para teste de jogadas possiveis
 	if (player%2 == 1){ // se for player 1
@@ -1267,6 +1299,7 @@ void checkPossMov(int i, int j){
 				BSP_LCD_SetTextColor(PossMov);
 				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);       //assinalada por * (estrelinha)
 				compass[UPLEFT] = TRUE;                 //True quando o teste de direçao funcionou, sera usado na funçao reverse
+				counterPossibleMove++;
 			}
 		}
 	}
@@ -1281,6 +1314,7 @@ void checkPossMov(int i, int j){
 				BSP_LCD_SetTextColor(PossMov);
 				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
 				compass[UP] = TRUE;
+				counterPossibleMove++;
 			}
 		}
 	}
@@ -1297,6 +1331,7 @@ void checkPossMov(int i, int j){
 				BSP_LCD_SetTextColor(PossMov);
 				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
 				compass[UPRIGHT] = TRUE;
+				counterPossibleMove++;
 			}
 		}
 	}
@@ -1312,6 +1347,7 @@ void checkPossMov(int i, int j){
 				BSP_LCD_SetTextColor(PossMov);
 				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
 				compass[LEFT] = TRUE;
+				counterPossibleMove++;
 			}
 		}
 	}
@@ -1327,6 +1363,7 @@ void checkPossMov(int i, int j){
 				BSP_LCD_SetTextColor(PossMov);
 				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
 				compass[RIGHT] = TRUE;
+				counterPossibleMove++;
 			}
 		}
 	}
@@ -1343,6 +1380,7 @@ void checkPossMov(int i, int j){
 				BSP_LCD_SetTextColor(PossMov);
 				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
 				compass[DOWNLEFT] = TRUE;
+				counterPossibleMove++;
 			}
 		}
 	}
@@ -1351,32 +1389,34 @@ void checkPossMov(int i, int j){
 	iaux = i + 1;       //Testing DOWN
 	jaux = j;
 	while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-				iaux++;
+		iaux++;
 
-				if (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux)  == col1) {
-					if (BSP_LCD_ReadPixel(405+50*i,75+50*j)  == NoPossMov) {
-						BSP_LCD_SetTextColor(PossMov);
-						BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
-						compass[DOWN] = TRUE;
-					}
-				}
+		if (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux)  == col1) {
+			if (BSP_LCD_ReadPixel(405+50*i,75+50*j)  == NoPossMov) {
+				BSP_LCD_SetTextColor(PossMov);
+				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
+				compass[DOWN] = TRUE;
+				counterPossibleMove++;
 			}
+		}
+	}
 
 
-			iaux = i + 1;       //Testing DOWN+RIGHT
-			jaux = j + 1;
-			while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-				iaux++;
-				jaux++;
+	iaux = i + 1;       //Testing DOWN+RIGHT
+	jaux = j + 1;
+	while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
+		iaux++;
+		jaux++;
 
-				if (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col1) {
-					if (BSP_LCD_ReadPixel(405+50*i,75+50*j) == NoPossMov) {
-						BSP_LCD_SetTextColor(PossMov);
-						BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
-						compass[DOWNRIGHT] = TRUE;
-					}
-				}
+		if (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col1) {
+			if (BSP_LCD_ReadPixel(405+50*i,75+50*j) == NoPossMov) {
+				BSP_LCD_SetTextColor(PossMov);
+				BSP_LCD_FillCircle(405+50*i,75+50*j, 5);
+				compass[DOWNRIGHT] = TRUE;
+				counterPossibleMove++;
 			}
+		}
+	}
 }
 void blockMove (uint16_t *cX, uint16_t *cY)
 {
@@ -1385,117 +1425,68 @@ void blockMove (uint16_t *cX, uint16_t *cY)
 	}
 }
 
-
-void reverse(uint16_t *cX, uint16_t *cY) {
-
-    uint32_t col1;
+void reverse()
+{
+	uint32_t col1;
 	uint32_t col2;
-	int iaux, jaux;
+    int advPieces;
 
 	if (player%2 == 1){ // se for player 1
-			col1 = color1;
-			col2 = color2;
+		col1 = color1; // fica com a cor do jogador um
+		col2 = color2; // vice versa
+	}
+	else{
+		col1 = color2; // se for player 2, toma cor do player 2
+		col2 = color1; // e vice versa
+	}
+	for(int dx = -1; dx < 2; dx++)
+	{
+		for(int dy = -1; dy < 2; dy++)
+		{
+			advPieces=0;
+
+			if(!(dx==0 && dy==0))
+			{
+				for(int i=1; i<DIM;i++)
+				{
+					if((cX+dx*i*50 )>= 380  && (cY+dy*i*50) >= 50  && (cX+dx*i*50) < (380+DIM*50) && (cY+dy*i*50) < (50 +DIM*50))
+					{
+						if(BSP_LCD_ReadPixel((cX+dx*i*50), (cY+dy*i*50))== LCD_COLOR_LIGHTGRAY)
+						{
+
+							break;
+						}
+
+						if(BSP_LCD_ReadPixel(cX+dx*i*50, cY+dy*i*50)==col2)
+						{
+
+							advPieces++;
+
+						}
+
+						if(BSP_LCD_ReadPixel(cX+dx*i*50, cY+dy*i*50)==col1)
+						{
+
+							if(advPieces>0)
+							{
+
+								for(int i = 1; i <= advPieces; i++)
+								{
+
+									BSP_LCD_SetTextColor(col1);
+									BSP_LCD_FillCircle(cX+dx*i*50, cY+dy*i*50, 15);
+								}
+							}
+							else
+							{
+								break;
+							}
+						}
+					}
+				}
+			}
 		}
-		else{
-			col1 = color2;
-			col2 = color1;
-		}
-
-
-    if (compass[UPLEFT]) {
-    	iaux = cX - 50;           //Testing UP+LEFT
-        jaux = cY - 50;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            iaux--;
-            jaux--;
-        }
-    }
-
-
-    if (compass[UP]) {
-        iaux = cX - 50;           //Testing UP
-        jaux = cY;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            iaux--;
-        }
-    }
-
-
-    if (compass[UPRIGHT]) {
-        iaux = cX - 50;           //Testing UP+RIGHT
-        jaux = cY + 50;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            iaux--;
-            jaux++;
-        }
-    }
-
-
-    if (compass[LEFT]) {
-        iaux = cX;               //Testing LEFT
-        jaux = cY - 50;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            jaux--;
-        }
-    }
-
-
-    if (compass[RIGHT]) {
-        iaux = cX;               //Testing RIGHT
-        jaux = cY + 50;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            jaux++;
-        }
-    }
-
-
-    if (compass[DOWNLEFT]) {
-        iaux = cX + 50;           //Testing DOWN+LEFT
-        jaux = cY - 50;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            iaux++;
-            jaux--;
-        }
-    }
-
-
-    if (compass[DOWN]) {
-        iaux = cX + 50;           //Testing DOWN
-        jaux = cY;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            iaux++;
-        }
-    }
-
-
-    if (compass[DOWNRIGHT]) {
-        iaux = cX + 50;           //Testing DOWN+RIGHT
-        jaux = cY + 50;
-        while (BSP_LCD_ReadPixel(405+50*iaux,75+50*jaux) == col2) {
-        	BSP_LCD_SetTextColor(col1);
-        	BSP_LCD_FillCircle(cX, cY, 15);
-            iaux++;
-            jaux++;
-        }
-    }
-
-    for (int k = 0; k < 8; k++) {       //limpa rosa dos ventos, necessario para a funçao neighborhood e ciclo do jogo
-        compass[k] = FALSE;
-    }
+	}
 }
 
 
@@ -1522,16 +1513,39 @@ void counterScore()
 	}
 }
 
-/*
-void putplay(uint16_t *cX, uint16_t *cY, uint32_t color1, uint32_t color2) {
+void readRules()
+{
+    char stringRules[200];
+    sprintf(stringRules, "RULES");
+    BSP_LCD_SetFont(&Font24);
+    BSP_LCD_DisplayStringAt(15,40 , (uint8_t *)stringRules, CENTER_MODE);
+    sprintf(stringRules, "Reversi is a strategy board game for two players,");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,80 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "played on an 8 x 8 uncheckered board.");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,100 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "There are sixty-four identical game pieces called disks (often spelled discs),");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,120 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "which are light on one side and dark on the other.");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,140 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "Players take turns placing disks on the board with their assigned color facing up.");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,160 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "During a play, any disks of the opponent's color that are in a straight line and bounded by the disk");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,180 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "just placed and another disk of the current player's color are turned over to the current player's color.");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,200 , (uint8_t *)stringRules, LEFT_MODE);
+    sprintf(stringRules, "The object of the game is to have the majority of disks turned to display your color when the last playable empty square is filled.");
+    BSP_LCD_SetFont(&Font12);
+    BSP_LCD_DisplayStringAt(8,220 , (uint8_t *)stringRules, LEFT_MODE);
 
-    putCircle(&cX, &cY);          //coloca peça na posiçao escolhida pelo jogador
-
-    reverse(&cX, &cX, color1, color2); //reverte as peças "comidas" pela jogada anterior
+    LCD_Config2();
 }
-*/
-
-
 
 /* USER CODE END 4 */
 

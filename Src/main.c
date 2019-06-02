@@ -49,7 +49,7 @@ typedef enum {MENU, SINGLE, MULTI,SCORE,RULES } states;
 #define DOWN 					6
 #define DOWNRIGHT 				7
 
-#define DIM   					8
+#define DIM  					8
 
 #define FALSE 0
 #define TRUE  1
@@ -112,9 +112,10 @@ uint16_t cY = 0;	//Y coordinate
 uint32_t color1 = LCD_COLOR_BLUE;
 uint32_t color2 = LCD_COLOR_YELLOW;
 bool victor;
-
-
 volatile uint8_t updateDisplay=0;
+int board[DIM][DIM]={{0}};
+char stringPlayer[30];
+
 
 /* USER CODE END PV */
 
@@ -154,6 +155,11 @@ void blockMove (uint16_t *cX, uint16_t *cY);
 void reverse();
 void readRules();
 void pass3times();
+void setToMemory ();
+void setMemoryToBoard();
+
+void printToScreen(void);
+void initBoard(void);
 
 /* USER CODE END PFP */
 
@@ -208,7 +214,7 @@ int main(void)
 	/* USER CODE BEGIN 1 */
 
 
-	stadus= MENU;
+
 	/* USER CODE END 1 */
 
 
@@ -261,6 +267,7 @@ int main(void)
 	/* USER CODE BEGIN WHILE */
 
 //	writeGameInfoSD();
+	stadus= MENU;
 	LCD_Config();
 	printMenu();
 
@@ -278,71 +285,74 @@ int main(void)
 			break;
 
 		case MULTI:
-			if(updateDisplay==1)
+					if(updateDisplay==1)
 
-			{
-				updateDisplay=0;
+					{
+						updateDisplay=0;
 
-				printScoreTable();
-				firstPlays ();
-				HAL_TIM_Base_Start_IT(&htim6);
-				HAL_TIM_Base_Start_IT(&htim13);
-				printTotalTime ();
-				clearPrePossMov();
+						printScoreTable();
+						firstPlays ();
+						HAL_TIM_Base_Start_IT(&htim6);
+						HAL_TIM_Base_Start_IT(&htim13);
+						printTotalTime ();
+						clearPrePossMov();
 
-				//TODO: Desenhar peças que já estão no tabuleiro
-			}
+						//TODO: Desenhar peças que já estão no tabuleiro
+					}
 
-			if (flagTouch)
-			{
-				flagTouch=0;
+					if (flagTouch)
+					{
+						flagTouch=0;
 
-				checkPlace(&cX, &cY);
-				blockMove(cX, cY);
-				reverse();
-			}
+						checkPlace(&cX, &cY);
+						blockMove(cX, cY);
+						setToMemory ();
+						reverse();
+						setMemoryToBoard ();
+					}
 
-			//writeGameInfoSD ();
-			break;
+					//writeGameInfoSD ();
+					break;
 
-		case SCORE:
+				case SCORE:
 
-			//ReadFromSD ();
-			break;
+					//ReadFromSD ();
+					break;
 
-		case RULES:
-			if(updateDisplay==1)
+				case RULES:
+					if(updateDisplay==1)
 
-						{
-							updateDisplay=0;
+								{
+									updateDisplay=0;
 
-			BSP_LCD_Clear(LCD_COLOR_WHITE);
-			readRules();
-						}
+					BSP_LCD_Clear(LCD_COLOR_WHITE);
+					readRules();
+								}
 
-			break;
+					break;
 
 
-		case MENU:
-			if (flagTouch)
-			{
-				flagTouch = 0;
-				touchMenu();
-				updateDisplay=1;
-				BSP_LCD_Clear(LCD_COLOR_WHITE);
-				//FIXME: apagar isto daqui?
-				printBoardGame();
-			}
-			break;
-		}
-		if(flagPrintMenu)
-		{
-			flagPrintMenu = 0;
-			BSP_LCD_Clear(LCD_COLOR_WHITE);
-			printMenu();
-			printTemperatura();
-			stadus=MENU;
-		}
+				case MENU:
+					if (flagTouch)
+					{
+						flagTouch = 0;
+						touchMenu();
+						updateDisplay=1;
+						BSP_LCD_Clear(LCD_COLOR_WHITE);
+						//FIXME: apagar isto daqui?
+						printBoardGame();
+					}
+					break;
+				}
+				if(flagPrintMenu)
+				{
+					flagPrintMenu = 0;
+					BSP_LCD_Clear(LCD_COLOR_WHITE);
+					printMenu();
+					printTemperatura();
+					stadus=MENU;
+				}
+
 
 		/* USER CODE END WHILE */
 
@@ -941,19 +951,7 @@ static void LCD_Config(void)
 	BSP_LCD_Clear(LCD_COLOR_WHITE);
 
 	/* Set LCD Example description */
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKBLUE);
-	BSP_LCD_SetFont(&Font12);
-	BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 20, (uint8_t *)"Copyright (c) Holy Fathers company", CENTER_MODE);
-	BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
-	BSP_LCD_FillRect(0, 0, BSP_LCD_GetXSize(), 35);
-	BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-	BSP_LCD_SetBackColor(LCD_COLOR_CYAN);
-	BSP_LCD_SetFont(&Font24);
-
-	BSP_LCD_DisplayStringAt(0, 10, (uint8_t *)"The Reversi", CENTER_MODE);
-	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-	BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-	BSP_LCD_SetFont(&Font24);
+	LCD_Config2();
 }
 
 static void LCD_Config2(void)
@@ -1096,19 +1094,19 @@ void checkPlace(uint16_t* coordX, uint16_t* coordY)
 
 void firstPlays ()
 {
-	BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+	BSP_LCD_SetTextColor(LCD_COLOR_YELLOW);
 	BSP_LCD_FillCircle(555, 225, 15);
 	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
 
-	BSP_LCD_SetTextColor(LCD_COLOR_YELLOW );
+	BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
 	BSP_LCD_FillCircle(605, 225, 15);
 	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
 
-	BSP_LCD_SetTextColor(LCD_COLOR_YELLOW );
+	BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
 	BSP_LCD_FillCircle(555, 275, 15);
 	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
 
-	BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+	BSP_LCD_SetTextColor(LCD_COLOR_YELLOW);
 	BSP_LCD_FillCircle(605, 275, 15);
 	BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
 }
@@ -1157,6 +1155,7 @@ void touchMenu()
 	if(TS_State.touchX[0]>=250 && TS_State.touchX[0]<=550 && TS_State.touchY[0]>=120 && TS_State.touchY[0]<=200)
 	{
 		stadus = SINGLE;
+
 	}
 	if(TS_State.touchX[0]>=250 && TS_State.touchX[0]<=550 && TS_State.touchY[0]>=201 && TS_State.touchY[0]<=260)
 	{
@@ -1226,7 +1225,7 @@ void writeGameInfoSD ()
     }
     HAL_Delay(100);
 
-  //  sprintf(string,"Vencedor: %s, Jogador 1 Pontuação: %d, Jogador 1 Pontuação: %d, Tempo de jogo: %d, Temp média: &%ld\n", stringPlayer, ScorePlayer1, ScorePlayer2, counter, TEmpave);
+  sprintf(string,"Vencedor: %s, Jogador 1 Pontuação: %d, Jogador 1 Pontuação: %d, Tempo de jogo: %d\n", stringPlayer, ScorePlayer1, ScorePlayer2, counter);
 
     int x=strlen(string)*sizeof(char);
 
@@ -1425,69 +1424,109 @@ void blockMove (uint16_t *cX, uint16_t *cY)
 	}
 }
 
-void reverse()
-{
-	uint32_t col1;
-	uint32_t col2;
-    int advPieces;
+void reverse() {
 
-	if (player%2 == 1){ // se for player 1
-		col1 = color1; // fica com a cor do jogador um
-		col2 = color2; // vice versa
-	}
-	else{
-		col1 = color2; // se for player 2, toma cor do player 2
-		col2 = color1; // e vice versa
-	}
-	for(int dx = -1; dx < 2; dx++)
-	{
-		for(int dy = -1; dy < 2; dy++)
-		{
-			advPieces=0;
+    int iaux, jaux;
+    int col1, col2;
 
-			if(!(dx==0 && dy==0))
-			{
-				for(int i=1; i<DIM;i++)
-				{
-					if((cX+dx*i*50 )>= 380  && (cY+dy*i*50) >= 50  && (cX+dx*i*50) < (380+DIM*50) && (cY+dy*i*50) < (50 +DIM*50))
-					{
-						if(BSP_LCD_ReadPixel((cX+dx*i*50), (cY+dy*i*50))== LCD_COLOR_LIGHTGRAY)
-						{
+    //define cor de cada player para teste de jogadas possiveis
+    	if (player%2 == 1){ // se for player 1
+    		col1 = 1;
+    		col2 = 2;
+    	}
+    	else{
+    		col1 = 2;
+    		col2 = 1;
+    	}
 
-							break;
-						}
+    if (compass[UPLEFT]) { //apenas testa direçao se na funçao neighborhood esta direçao tinha sido assinalada como jogada possivel
+        iaux = cX - 50;           //Testing UP+LEFT
+        jaux = cY - 50;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            iaux-=50;
+            jaux-=50;
+        }
+    }
 
-						if(BSP_LCD_ReadPixel(cX+dx*i*50, cY+dy*i*50)==col2)
-						{
 
-							advPieces++;
+    if (compass[UP]) {
+        iaux = cX - 50;           //Testing UP
+        jaux = cY;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            iaux-=50;
+        }
+    }
 
-						}
 
-						if(BSP_LCD_ReadPixel(cX+dx*i*50, cY+dy*i*50)==col1)
-						{
+    if (compass[UPRIGHT]) {
+        iaux = cX - 50;           //Testing UP+RIGHT
+        jaux = cY+ 50;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            iaux-=50;
+            jaux+=50;
+        }
+    }
 
-							if(advPieces>0)
-							{
 
-								for(int i = 1; i <= advPieces; i++)
-								{
+    if (compass[LEFT]) {
+        iaux = cX;               //Testing LEFT
+        jaux = cY- 50;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            jaux-=50;
+        }
+    }
 
-									BSP_LCD_SetTextColor(col1);
-									BSP_LCD_FillCircle(cX+dx*i*50, cY+dy*i*50, 15);
-								}
-							}
-							else
-							{
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+
+    if (compass[RIGHT]) {
+        iaux = cX;               //Testing RIGHT
+        jaux = cY + 50;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            jaux+=50;
+        }
+    }
+
+
+    if (compass[DOWNLEFT]) {
+        iaux = cX +50;           //Testing DOWN+LEFT
+        jaux = cY - 50;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            iaux+=50;
+            jaux-=50;
+        }
+    }
+
+
+    if (compass[DOWN]) {
+        iaux = cX + 50;           //Testing DOWN
+        jaux = cY;
+        while (board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            iaux+=50;
+        }
+    }
+
+
+    if (compass[DOWNRIGHT]) {
+        iaux = cX + 50;           //Testing DOWN+RIGHT
+        jaux = cY + 50;
+        while ( board[iaux][jaux] == col2) {
+            board[iaux][jaux] = col1;
+            iaux+=50;
+            jaux+=50;
+        }
+    }
+
+    for (int k = 0; k < 8; k++) {       //limpa rosa dos ventos, necessario para a funçao neighborhood e ciclo do jogo
+        compass[k] = FALSE;
+    }
 }
+
 
 
 void counterScore()
@@ -1547,6 +1586,53 @@ void readRules()
     LCD_Config2();
 }
 
+
+void setToMemory ()
+{
+	for (int i=0; i<DIM; i++)
+	{
+		for (int j=0; j<DIM; j++)
+		{
+			if(BSP_LCD_ReadPixel((405+50*i), (75+50*j))== LCD_COLOR_LIGHTGRAY || BSP_LCD_ReadPixel((405+50*i), (75+50*j))== LCD_COLOR_DARKGRAY)
+			{
+				board[i][j] = 0;
+			}
+			else if(BSP_LCD_ReadPixel((405+50*i), (75+50*j))== LCD_COLOR_YELLOW)
+			{
+				board[i][j] = 1;
+			}
+			else if(BSP_LCD_ReadPixel((405+50*i), (75+50*j))== LCD_COLOR_BLUE)
+			{
+				board[i][j] = 2;
+			}
+		}
+	}
+}
+
+void setMemoryToBoard ()
+{
+	for (int i=0; i<DIM; i++)
+	{
+		for (int j=0; j<DIM; j++)
+		{
+			if(board[i][j] == 0)
+			{
+				BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY); //altera a cor dessas cordenadas
+				BSP_LCD_FillCircle(405+50*i, 75+50*j, 15);
+			}
+			else if(board[i][j] == 1)
+			{
+				BSP_LCD_SetTextColor(LCD_COLOR_YELLOW); //altera a cor dessas cordenadas
+				BSP_LCD_FillCircle(405+50*i, 75+50*j, 15);
+			}
+			else if(board[i][j] == 2)
+			{
+				BSP_LCD_SetTextColor(LCD_COLOR_BLUE); //altera a cor dessas cordenadas
+				BSP_LCD_FillCircle(405+50*i, 75+50*j, 15);
+			}
+		}
+	}
+}
 /* USER CODE END 4 */
 
 /**

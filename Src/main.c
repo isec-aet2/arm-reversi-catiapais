@@ -303,6 +303,11 @@ int main(void)
 					setMemoryToBoard ();
 					returnTimeZero();
 				}
+				if(flagPrintMenu)
+					{
+						flagPrintMenu = 0;
+						player++;
+					}
 
 				//writeGameInfoSD ();
 				break;

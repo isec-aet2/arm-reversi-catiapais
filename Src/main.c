@@ -62,24 +62,17 @@ typedef enum {MENU, SINGLE, MULTI,SCORE,RULES } states; //estados do switch do m
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-
 DMA2D_HandleTypeDef hdma2d;
-
 DSI_HandleTypeDef hdsi;
-
 LTDC_HandleTypeDef hltdc;
-
 SD_HandleTypeDef hsd2;
-
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim13;
-
 SDRAM_HandleTypeDef hsdram1;
 
 /* USER CODE BEGIN PV */
@@ -144,7 +137,6 @@ void printTemperatura ();
 void printTotalTime ();
 void writeGameInfoSD ();
 void clearPrePossMov();
-//void putplay(uint16_t *cX, uint16_t *cY, uint32_t color1, uint32_t color2);
 void counterScore();
 void blockMove (uint16_t *cX, uint16_t *cY);
 void reverse();
@@ -276,6 +268,14 @@ int main(void)
 		switch (stadus) {
 
 			case SINGLE:
+				if(updateDisplay==1)
+				{
+					updateDisplay=0;
+					BSP_LCD_Clear(LCD_COLOR_WHITE);
+					sprintf(string, "Em construcao");
+					BSP_LCD_SetFont(&Font24);
+					BSP_LCD_DisplayStringAt(BSP_LCD_GetXSize()/2-50, BSP_LCD_GetYSize()/2, (uint8_t *)string, LEFT_MODE);
+				}
 				break;
 
 			case MULTI:
@@ -314,6 +314,15 @@ int main(void)
 
 			case SCORE:
 				//ReadFromSD ();
+				if(updateDisplay==1)
+
+				{
+					updateDisplay=0;
+					BSP_LCD_Clear(LCD_COLOR_WHITE);
+					sprintf(string, "Em construcao");
+					BSP_LCD_SetFont(&Font24);
+					BSP_LCD_DisplayStringAt(BSP_LCD_GetXSize()/2-50, BSP_LCD_GetYSize()/2, (uint8_t *)string, LEFT_MODE);
+				}
 				break;
 
 			case RULES:
@@ -336,7 +345,6 @@ int main(void)
 					touchMenu();
 					updateDisplay=1;
 					BSP_LCD_Clear(LCD_COLOR_WHITE);
-					//FIXME: apagar isto daqui?
 					printBoardGame();
 				}
 				break;
@@ -1025,10 +1033,10 @@ void printBoardGame()
 
 void returnTimeZero()
 {
-	counter=0;
+
 	if(TS_State.touchX[0]>=20 && TS_State.touchX[0]<=350 && TS_State.touchY[0]>=350 && TS_State.touchY[0]<=400)
 	{
-
+		counter=0;
 			int h=counter/3600, m=(counter-3600*h)/60, s=(counter-3600*h-m*60);
 			sprintf(string, "Time Total: %2d:%2d:%2d", h,m,s);
 			BSP_LCD_SetFont(&Font20);
